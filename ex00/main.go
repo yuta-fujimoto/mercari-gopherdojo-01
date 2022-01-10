@@ -11,7 +11,7 @@ import (
 func getError(err error, errFlg *bool) string {
 	*errFlg = true
 	errCmps := strings.Split(err.Error(), ": ")
-	return "ft_cat:" + errCmps[0][strings.Index(errCmps[0], " "):]+ ": " + strings.ToUpper(errCmps[1][:1]) + errCmps[1][1:] + "\n"
+	return "ft_cat:" + errCmps[0][strings.Index(errCmps[0], " "):] + ": " + strings.ToUpper(errCmps[1][:1]) + errCmps[1][1:] + "\n"
 }
 
 func ft_write(rd io.Reader, wd io.Writer) error {
@@ -19,14 +19,9 @@ func ft_write(rd io.Reader, wd io.Writer) error {
 	wb := bufio.NewWriter(wd)
 	defer wb.Flush()
 
-	for {
-		n, err := rb.WriteTo(wb)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			break
-		}
+	_, err := rb.WriteTo(wb)
+	if err != nil {
+		return err
 	}
 	return nil
 }
