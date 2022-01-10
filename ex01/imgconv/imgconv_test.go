@@ -34,17 +34,16 @@ func TestDirectory(t *testing.T) {
 		},
 	}
 	for _, td := range cases {
+		td := td
 		t.Run(td.name, func(t *testing.T) {
-			err := filepath.WalkDir(filepath.Join(TESTDIR, td.path), func(path string, info fs.DirEntry, err error) error {
+			t.Parallel()
+			filepath.WalkDir(filepath.Join(TESTDIR, td.path), func(path string, info fs.DirEntry, err error) error {
 				if !info.IsDir() && filepath.Ext(info.Name()) == OUTPUT {
-					err := os.Remove(path)
-					if err != nil {
-						t.Fatal("failed to remove " + path)
-					}
+					os.Remove(path)
 				}
 				return nil
 			})
-			err = imgconv.ConvertImage(filepath.Join(TESTDIR, td.path), INPUT[1:], OUTPUT[1:])
+			err := imgconv.ConvertImage(filepath.Join(TESTDIR, td.path), INPUT[1:], OUTPUT[1:])
 			if err != nil {
 				t.Fatal("ConvertImage failed by the error")
 			}
@@ -67,7 +66,9 @@ func TestFilePath(t *testing.T) {
 		},
 	}
 	for _, td := range cases {
+		td := td
 		t.Run(td.name, func(t *testing.T) {
+			t.Parallel()
 			os.Remove(td.filepath + OUTPUT)
 			err := imgconv.ConvertImage(filepath.Join(TESTDIR, td.filepath)+INPUT, INPUT[1:], OUTPUT[1:])
 			if err != nil {
@@ -112,7 +113,9 @@ func TestError(t *testing.T) {
 		},
 	}
 	for _, td := range cases {
+		td := td
 		t.Run(td.name, func(t *testing.T) {
+			t.Parallel()
 			got := imgconv.ConvertImage(td.args[0], td.args[1], td.args[2])
 			want := "error: " + td.msg
 			if got.Error() != want {
