@@ -8,13 +8,17 @@ import (
 	"strings"
 )
 
-func getError(err error, errFlg *bool) string {
-	*errFlg = true
-	errCmps := strings.Split(err.Error(), ": ")
-	return "ft_cat:" + errCmps[0][strings.Index(errCmps[0], " "):] + ": " + strings.ToUpper(errCmps[1][:1]) + errCmps[1][1:] + "\n"
+func getError(err error, fn string) string {
+	errWords := strings.Split(err.Error(), ": ")
+	errMsg := errWords[len(errWords) - 1]
+	errMsg = strings.ToUpper(errMsg[:1]) + errMsg[1:]
+	return "ft_cat: " + fn + ": " + errMsg + "\n"
 }
 
-func ft_write(rd io.Reader, wd io.Writer) error {
+
+// https://pkg.go.dev/io#Reader
+// I/O abstraction with io package
+func ft_write_file_content(rd io.Reader, wd io.Writer) error {
 	rb := bufio.NewReader(rd)
 	wb := bufio.NewWriter(wd)
 	defer wb.Flush()
@@ -37,13 +41,15 @@ func ft_cat(args []string) (errFlg bool) {
 		} else {
 			file, err = os.Open(arg)
 			if err != nil {
-				io.WriteString(os.Stderr, getError(err, &errFlg))
+				errFlg = true
+				io.WriteString(os.Stderr, getError(err, arg))
 				continue
 			}
 		}
-		err = ft_write(file, os.Stdout)
+		err = ft_write_file_content(file, os.Stdout)
 		if err != nil {
-			io.WriteString(os.Stderr, getError(err, &errFlg))
+			errFlg = true
+			io.WriteString(os.Stderr, getError(err, arg))
 		}
 	}
 	return

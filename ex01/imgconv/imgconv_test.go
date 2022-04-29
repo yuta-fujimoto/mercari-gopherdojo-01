@@ -148,6 +148,8 @@ func assertSameImages(file string, t *testing.T) {
 	if !inimg.Bounds().Eq(outimg.Bounds()) {
 		t.Fatal("sizes of two image files differ :(")
 	}
+	
+	// checking all pixels is time consuming, so it checks lower than 10000 pixels(100 * 100)
 	bounds := inimg.Bounds()
 	strideX := bounds.Dx() / 100
 	strideY := bounds.Dy() / 100
