@@ -6,12 +6,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 const (
-	INPUT   = ".jpg"
-	OUTPUT  = ".png"
+	JPG   = "jpg"
+	PNG  = "png"
 	TESTDIR = "../testdata"
 )
 
@@ -24,31 +25,32 @@ func TestDirectory(t *testing.T) {
 	}{
 		{
 			name:  "normal",
-			path:  "dir1",
+			path:  "directory1",
 			files: []string{"test1", "test2"},
 		},
 		{
 			name:  "image in subdirectory",
-			path:  "dir3",
+			path:  "directory2",
 			files: []string{"test1", "subdir/test2"},
 		},
 	}
 	for _, td := range cases {
 		td := td
+		td.path = filepath.Join(TESTDIR, td.path)
 		t.Run(td.name, func(t *testing.T) {
 			t.Parallel()
-			filepath.WalkDir(filepath.Join(TESTDIR, td.path), func(path string, info fs.DirEntry, err error) error {
-				if !info.IsDir() && filepath.Ext(info.Name()) == OUTPUT {
+			filepath.WalkDir(td.path, func(path string, info fs.DirEntry, err error) error {
+				if !info.IsDir() && filepath.Ext(info.Name())[1:] == PNG {
 					os.Remove(path)
 				}
 				return nil
 			})
-			err := imgconv.ConvertImage(filepath.Join(TESTDIR, td.path), INPUT[1:], OUTPUT[1:])
+			err := imgconv.ConvertImage(td.path, JPG, PNG)
 			if err != nil {
 				t.Fatal("ConvertImage failed by the error")
 			}
 			for _, file := range td.files {
-				assertSameImages(filepath.Join(TESTDIR, td.path, file), t)
+				assertSameImages(filepath.Join(td.path, file), t)
 			}
 		})
 	}
@@ -62,24 +64,28 @@ func TestFilePath(t *testing.T) {
 	}{
 		{
 			name:     "normal",
-			filepath: "dir2/test1",
+			filepath: "filepath1/test1",
 		},
 	}
 	for _, td := range cases {
 		td := td
+		td.filepath = filepath.Join(TESTDIR, td.filepath)
 		t.Run(td.name, func(t *testing.T) {
 			t.Parallel()
-			os.Remove(td.filepath + OUTPUT)
-			err := imgconv.ConvertImage(filepath.Join(TESTDIR, td.filepath)+INPUT, INPUT[1:], OUTPUT[1:])
+			os.Remove(td.filepath + "." + PNG)
+
+			err := imgconv.ConvertImage(td.filepath + "." + JPG, JPG, PNG)
 			if err != nil {
 				t.Fatal("ConvertImage failed by the error")
 			}
-			assertSameImages(filepath.Join(TESTDIR, td.filepath), t)
+			assertSameImages(td.filepath, t)
 		})
 	}
 }
 
 func TestError(t *testing.T) {
+	permTestFilePath := filepath.Join(TESTDIR, "error2", "test1.jpg")
+	os.Chmod(permTestFilePath, 0333)
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -88,28 +94,33 @@ func TestError(t *testing.T) {
 	}{
 		{
 			name: "no such direcory",
-			args: [3]string{"nodir", INPUT[1:], OUTPUT[1:]},
+			args: [3]string{"nodir", JPG, PNG},
 			msg:  "nodir: no such file or directory",
 		},
 		{
 			name: "invalid format 1",
-			args: [3]string{"./", "noformat", OUTPUT[1:]},
+			args: [3]string{TESTDIR, "noformat", PNG},
 			msg:  "noformat: invalid format",
 		},
 		{
 			name: "invalid format 2",
-			args: [3]string{"./", INPUT[1:], "noformat"},
+			args: [3]string{TESTDIR, JPG, "noformat"},
 			msg:  "noformat: invalid format",
 		},
 		{
 			name: "contain text file",
-			args: [3]string{filepath.Join(TESTDIR, "dir4"), INPUT[1:], OUTPUT[1:]},
-			msg:  filepath.Join(TESTDIR, "dir4", "text.txt") + " is not a valid file",
+			args: [3]string{filepath.Join(TESTDIR, "error1"), JPG, PNG},
+			msg:  filepath.Join(TESTDIR, "error1", "text.txt") + " is not a valid file",
 		},
 		{
-			name: "input and output formats are same",
-			args: [3]string{"./", INPUT[1:], INPUT[1:]},
-			msg:  INPUT[1:] + ": input and output formats are same",
+			name: "JPG and PNG formats are same",
+			args: [3]string{TESTDIR, JPG, JPG},
+			msg:  JPG + ": input and output formats are same",
+		},
+		{
+			name: "no permission",
+			args: [3]string{filepath.Join(TESTDIR, "error2", "test1") + "." + JPG, JPG, PNG},
+			msg:  permTestFilePath + ": permission denied",
 		},
 	}
 	for _, td := range cases {
@@ -118,8 +129,14 @@ func TestError(t *testing.T) {
 			t.Parallel()
 			got := imgconv.ConvertImage(td.args[0], td.args[1], td.args[2])
 			want := "error: " + td.msg
+			if got == nil {
+				t.Fatal("no error")
+			}
 			if got.Error() != want {
 				t.Fatalf("got: [%s] want: [%s]", got, want)
+			}
+			if strings.Contains(td.name, "permission") {
+				os.Chmod(td.args[0], 0755)
 			}
 		})
 	}
@@ -127,23 +144,23 @@ func TestError(t *testing.T) {
 
 func assertSameImages(file string, t *testing.T) {
 	t.Helper()
-	infile, err := os.Open(file + INPUT)
+	infile, err := os.Open(file + "." + JPG)
 	if err != nil {
-		t.Fatal("failed to open " + file + OUTPUT)
+		t.Fatal("failed to open " + file + "." + PNG)
 	}
 	defer infile.Close()
-	outfile, err := os.Open(file + OUTPUT)
+	outfile, err := os.Open(file + "." + PNG)
 	if err != nil {
-		t.Fatal("failed to open " + file + OUTPUT)
+		t.Fatal("failed to open " + file + "." + PNG)
 	}
 	defer outfile.Close()
 	inimg, _, err := image.Decode(infile)
 	if err != nil {
-		t.Fatal("failed to decode " + file + INPUT)
+		t.Fatal("failed to decode " + file + "." + JPG)
 	}
 	outimg, _, err := image.Decode(outfile)
 	if err != nil {
-		t.Fatal("failed to decode " + file + OUTPUT)
+		t.Fatal("failed to decode " + file + "." + PNG)
 	}
 	if !inimg.Bounds().Eq(outimg.Bounds()) {
 		t.Fatal("sizes of two image files differ :(")
